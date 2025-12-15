@@ -1,8 +1,9 @@
 from django.db.models import Count, Q
 from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.generics import ListAPIView
+from rest_framework.permissions import IsAuthenticated, AllowAny
 
-from src.api.posts.serializers import PostSerializer, LikeSerializer, CommentSerializer
+from src.api.posts.serializers import PostSerializer, LikeSerializer, CommentSerializer, PostCreateSerializer
 from src.apps.posts.models import Post, Like, Comment
 
 class PostBaseQuerysetMixin:
@@ -17,20 +18,40 @@ class PostBaseQuerysetMixin:
             comments_count=Count('comments', distinct=True),
         ).order_by('-created_at')
 
+
 class PostListView(PostBaseQuerysetMixin, generics.ListAPIView):
     serializer_class = PostSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+
 
 class PostCreateView(generics.CreateAPIView):
-    serializer_class = PostSerializer
+    serializer_class = PostCreateSerializer
     permission_classes = [IsAuthenticated]
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+
+
 class PostDetailView(PostBaseQuerysetMixin, generics.RetrieveAPIView):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticated]
+
+class MyPostListView(ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return (
+            Post.objects
+            .filter(user=self.request.user)
+            .select_related('user')
+            .annotate(
+                likes_count=Count('likes', distinct=True),
+                comments_count=Count('comments', distinct=True),
+            )
+            .order_by('-created_at')
+        )
 
 class LikeListView(generics.ListAPIView):
     serializer_class = LikeSerializer
