@@ -1,6 +1,7 @@
 from django.db.models import Count, Q
 from rest_framework import generics
-from rest_framework.generics import ListAPIView
+from rest_framework.exceptions import PermissionDenied
+from rest_framework.generics import ListAPIView, get_object_or_404
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from src.api.posts.serializers import PostSerializer, LikeSerializer, CommentSerializer, PostCreateSerializer
@@ -10,18 +11,34 @@ class PostBaseQuerysetMixin:
     def get_queryset(self):
         if getattr(self, 'swagger_fake_view', False):
             return Post.objects.none()
+
+        qs = (
+            Post.objects
+            .select_related('user')
+            .annotate(
+                likes_count=Count('likes', distinct=True),
+                comments_count=Count('comments', distinct=True),
+            )
+            .order_by('-created_at')
+        )
+
         user = self.request.user
-        return Post.objects.filter(
-            Q(status='published') | Q(user=user)
-        ).select_related('user').annotate(
-            likes_count=Count('likes', distinct=True),
-            comments_count=Count('comments', distinct=True),
-        ).order_by('-created_at')
+
+        if user.is_authenticated:
+            return qs.filter(
+                Q(status='published') | Q(user=user)
+            )
+
+        return qs.filter(status='published')
 
 
-class PostListView(PostBaseQuerysetMixin, generics.ListAPIView):
+class PublicPostListView(ListAPIView):
     serializer_class = PostSerializer
     permission_classes = [AllowAny]
+
+    def get_queryset(self):
+        return Post.objects.filter(status='published')
+
 
 
 class PostCreateView(generics.CreateAPIView):
@@ -32,26 +49,30 @@ class PostCreateView(generics.CreateAPIView):
         serializer.save(user=self.request.user)
 
 
-
 class PostDetailView(PostBaseQuerysetMixin, generics.RetrieveAPIView):
     serializer_class = PostSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
-class MyPostListView(ListAPIView):
+class MyPublishedPostListView(ListAPIView):
     serializer_class = PostSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return (
-            Post.objects
-            .filter(user=self.request.user)
-            .select_related('user')
-            .annotate(
-                likes_count=Count('likes', distinct=True),
-                comments_count=Count('comments', distinct=True),
-            )
-            .order_by('-created_at')
+        return Post.objects.filter(
+            user=self.request.user,
+            status='published'
         )
+
+class MyDraftPostListView(ListAPIView):
+    serializer_class = PostSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Post.objects.filter(
+            user=self.request.user,
+            status='draft'
+        )
+
 
 class LikeListView(generics.ListAPIView):
     serializer_class = LikeSerializer
@@ -59,6 +80,12 @@ class LikeListView(generics.ListAPIView):
 
     def get_queryset(self):
         post_id = self.kwargs.get('post_id')
+        post = get_object_or_404(Post, pk=post_id)
+
+        user = self.request.user
+        if post.status == 'draft' and post.user != user:
+            raise PermissionDenied("Cannot view likes for someone else's draft.")
+
         return Like.objects.filter(post_id=post_id)
 
 class LikeCreateView(generics.CreateAPIView):
@@ -67,8 +94,13 @@ class LikeCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         post_id = self.kwargs.get('post_id')
-        post = Post.objects.get(pk=post_id)
-        serializer.save(user=self.request.user, post=post)
+        user = self.request.user
+        post = get_object_or_404(Post, pk=post_id)
+
+        if post.status == 'draft' and post.user != user:
+            raise PermissionDenied("Cannot like someone else's draft.")
+
+        serializer.save(user=user, post=post)
 
 class CommentListView(generics.ListAPIView):
     serializer_class = CommentSerializer
@@ -76,6 +108,12 @@ class CommentListView(generics.ListAPIView):
 
     def get_queryset(self):
         post_id = self.kwargs.get('post_id')
+        post = get_object_or_404(Post, pk=post_id)
+
+        user = self.request.user
+        if post.status == 'draft' and post.user != user:
+            raise PermissionDenied("Cannot view comments for someone else's draft.")
+
         return Comment.objects.filter(post_id=post_id)
 
 class CommentCreateView(generics.CreateAPIView):
@@ -84,8 +122,13 @@ class CommentCreateView(generics.CreateAPIView):
 
     def perform_create(self, serializer):
         post_id = self.kwargs.get('post_id')
-        post = Post.objects.get(pk=post_id)
-        serializer.save(user=self.request.user, post=post)
+        user = self.request.user
+        post = get_object_or_404(Post, pk=post_id)
+
+        if post.status == 'draft' and post.user != user:
+            raise PermissionDenied("Cannot comment on someone else's draft.")
+
+        serializer.save(user=user, post=post)
 
 
 

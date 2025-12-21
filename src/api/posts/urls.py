@@ -1,16 +1,20 @@
 from django.urls import path
 from .views import (
-    PostListView, PostDetailView, PostCreateView,
+    PostDetailView, PostCreateView,
+    MyDraftPostListView, MyPublishedPostListView,
     LikeListView, LikeCreateView,
-    CommentListView, CommentCreateView, MyPostListView
+    CommentListView, CommentCreateView, PublicPostListView
 )
 
 urlpatterns = [
-    path('', PostListView.as_view(), name='post-list'),
-    path('my/', MyPostListView.as_view(), name='post-my'),
-    path('create/', PostCreateView.as_view(), name='post-create'),
-    path('<int:pk>/', PostDetailView.as_view(), name='post-detail'),
+    path('', PublicPostListView.as_view(), name='post-list'),
 
+    path('my/drafts/', MyDraftPostListView.as_view(), name='post-my-drafts'),  # only drafts
+    path('my/published/', MyPublishedPostListView.as_view(), name='post-my-published'), # only published
+
+    path('create/', PostCreateView.as_view(), name='post-create'),
+
+    path('<int:pk>/', PostDetailView.as_view(), name='post-detail'),
 
     path('<int:post_id>/likes/', LikeListView.as_view(), name='post-like-list'),
     path('<int:post_id>/likes/create/', LikeCreateView.as_view(), name='post-like-create'),
