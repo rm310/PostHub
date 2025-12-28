@@ -1,2 +1,3 @@
 from .usersserializer import UsersSerializer
 from .userregisterserializer import UserRegisterSerializer
+from .tokenconfirmserializer import TokenConfirmSerializer

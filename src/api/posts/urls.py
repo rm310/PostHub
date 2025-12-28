@@ -3,16 +3,18 @@ from .views import (
     PostDetailView, PostCreateView,
     MyDraftPostListView, MyPublishedPostListView,
     LikeListView, LikeCreateView,
-    CommentListView, CommentCreateView, PublicPostListView
+    CommentListView, CommentCreateView, PublicPostListView, PostUpdateView, PostDeleteView
 )
 
 urlpatterns = [
     path('', PublicPostListView.as_view(), name='post-list'),
 
-    path('my/drafts/', MyDraftPostListView.as_view(), name='post-my-drafts'),  # only drafts
-    path('my/published/', MyPublishedPostListView.as_view(), name='post-my-published'), # only published
+    path('my/drafts/', MyDraftPostListView.as_view(), name='post-my-drafts'),
+    path('my/published/', MyPublishedPostListView.as_view(), name='post-my-published'),
 
     path('create/', PostCreateView.as_view(), name='post-create'),
+    path('posts/<int:pk>/update/', PostUpdateView.as_view(), name='post-update'),
+    path('posts/<int:pk>/delete/', PostDeleteView.as_view(), name='post-delete'),
 
     path('<int:pk>/', PostDetailView.as_view(), name='post-detail'),
 
